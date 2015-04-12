@@ -13,5 +13,10 @@
     "gmail.js",
     "main.js"
   ],
+  "icons": {
+    "16": "img/icon-16.png",
+    "48": "img/icon-48.png",
+    "128": "img/icon-128.png"
+  },
   "manifest_version": 2
 }

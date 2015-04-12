@@ -1,0 +1,121 @@
+/*------------------------------------------
+/* 1 - BASE STYLE
+/*------------------------------------------*/
+
+html { font-size: 1em; line-height: 1.4; }
+::-moz-selection { background: #b3d4fc;text-shadow: none;
+}
+::selection { background: #b3d4fc; text-shadow: none; }
+audio, canvas, iframe, img, svg, video { vertical-align: middle; }
+
+*, *:before, *:after {
+    -webkit-box-sizing: border-box;
+       -moz-box-sizing: border-box;
+            box-sizing: border-box;
+}
+
+html, body { min-height: 100%; }
+
+body { background: #fff; font-size: 16px; }
+
+h1, h2, .button, h3, p { font-family: 'Titillium Web', 'Lucida Grande' sans-serif; font-weight: 300; }
+
+.wrap, footer { position: relative; }
+
+/*------------------------------------------
+/* 1 - BASE STYLE
+/*------------------------------------------*/
+
+.wrap { text-align: center; background: #ec886d; padding-bottom: 490px; padding-top: 50px; }
+
+h1 {
+	font-size: 2.2em;
+	color: #fff;
+	margin-top: 0.3em;
+	margin-bottom: 0;
+}
+
+h2 {
+	font-size: 1.5em;
+	color: rgba(0,0,0,0.5);
+	margin: 0.2em 0 1.2em 0;
+}
+h2 span {
+	padding: 0.1em 0.3em 0.15em 0.3em;
+	margin: 0 3px;
+	border-radius: 5px;
+	background: rgba(0,0,0,0.15);
+ }
+
+ .button {
+	background: #f8ed37;
+	border-radius: 5px;
+	font-weight: 700;
+	font-size: 1.2em;
+	color: #484848;
+	text-decoration: none;
+	text-transform: uppercase;
+	padding: 0.7em 0.8em;
+	display: block;
+	width: 15em;
+	margin: 0 auto;
+	position: relative;
+	z-index: 999;
+	border: 2px solid #f8ed37;
+	border-bottom: 2px solid #928b18;
+	transition: background 400ms, box-shadow 400ms;
+
+	/*-webkit-box-shadow: 0px 3px 42px 2px rgba(0,0,0,0.26);
+	-moz-box-shadow: 0px 3px 42px 2px rgba(0,0,0,0.26);*/
+	box-shadow: 0px 2px 0px 0px #928b18;
+ }
+
+ .button:hover { 
+	background: none;
+	border: 2px solid #f8ed37;
+	box-shadow: none;
+ }
+
+ .example { 
+ 	width: 430px;
+ 	height: 500px;
+	background: #fff;
+	position: absolute;
+	left: 50%;
+	margin-left: -215px;
+	margin-top: 40px;
+	-webkit-box-shadow: 0px 3px 30px 2px rgba(0,0,0,0.20);
+	-moz-box-shadow: 0px 3px 30px 2px rgba(0,0,0,0.20);
+	box-shadow: 0px 3px 30px 2px rgba(0,0,0,0.20);
+ }
+
+ .logo { 
+	width: 240px;
+ }
+
+
+footer { 
+	background: url(../img/bg.png) no-repeat center top; 
+	height: 200px; 
+	margin-top: -102px;
+	text-align: center;
+	padding-top: 150px;
+}
+
+h3 {
+	color: #484848;
+	font-weight: 700;
+	font-size: 1.2em;
+
+}
+
+p { margin-top: 4em; color: #484848; }
+
+p a {
+	color: #484848;
+	text-decoration: underline;
+}
+p a:hover {
+	text-decoration: none;
+}
+
