@@ -4,7 +4,9 @@ The fastest way to put GIFs in your emails.
 
 Write in any place of the gmail compose box the follow code and done:
 
-```::gif me whateveryouwant```
+```
+::gif me whateveryouwant
+```
 
 ![Example](http://zehfernandes.github.io/gifline/img/explanation.gif)
 
