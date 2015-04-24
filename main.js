@@ -39,7 +39,7 @@ var main = function(){
             if (commandLine != null) {
 
               var request = new XMLHttpRequest;
-              request.open('GET', 'https://api.giphy.com/v1/gifs/random?api_key=dc6zaTOxFJmzC&tag='+commandLine[1], true);
+              request.open('GET', 'https://api.giphy.com/v1/gifs/random?api_key=xTiTnvpvz9ucREOFRS&tag='+commandLine[1], true);
 
               request.onload = function() {
                   if (request.status >= 200 && request.status < 400){

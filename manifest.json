@@ -1,7 +1,7 @@
 {
   "name": "Gmail Gifline",
-  "version": "1.0",
-  "description": "The fast way to put gif in your emails",
+  "version": "1.1",
+  "description": "The fastest way to include gif in your emails",
   "content_scripts": [
     {
       "matches": ["https://mail.google.com/*"],
