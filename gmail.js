@@ -1,14 +1,21 @@
-var Gmail = function(localJQuery) {
+///////////////////////////////////////////
+// gmail.js
+// Kartik Talwar
+// https://github.com/KartikTalwar/gmail.js
+//
+
+var Gmail_ = function(localJQuery) {
 
   /*
     Use the provided 'jQuery' if possible, in order to avoid conflicts with
     other extensions that use $ for other purposes.
   */
   var $;
-  if (typeof localJQuery !== "undefined")
+  if (typeof localJQuery !== "undefined") {
     $ = localJQuery;
-  else if (typeof jQuery !== "undefined")
+  } else if (typeof jQuery !== "undefined") {
     $ = jQuery;
+  }
   // else leave $ undefined, which may be fine for some purposes.
 
   var api = {
@@ -19,14 +26,14 @@ var Gmail = function(localJQuery) {
               tracker : {},
               dom : {},
               chat : {},
-              compose : {}
+              compose : {},
+              helper : {get: {}}
             };
 
-
-  api.version           = "0.4";
-  api.tracker.globals   = GLOBALS;
-  api.tracker.view_data = typeof VIEW_DATA !== 'undefined' ? VIEW_DATA : [];
-  api.tracker.ik        = api.tracker.globals[9];
+  api.version           = "0.5";
+  api.tracker.globals   = typeof GLOBALS !== 'undefined' ? GLOBALS : ( window.opener != null && typeof window.opener.GLOBALS !== 'undefined' ? window.opener.GLOBALS : [] );
+  api.tracker.view_data = typeof VIEW_DATA !== 'undefined' ? VIEW_DATA : ( window.opener != null && typeof window.opener.VIEW_DATA !== 'undefined' ? window.opener.VIEW_DATA : [] );
+  api.tracker.ik        = api.tracker.globals[9] || "";
   api.tracker.hangouts  = undefined;
 
 
@@ -37,24 +44,73 @@ var Gmail = function(localJQuery) {
              ip : data[3],
              mac_address : data[9],
              time_relative : data[10]
-           }
-  }
+           };
+  };
 
 
   api.get.loggedin_accounts = function() {
-    var data = api.tracker.globals[17][23];
+    var i, j, data;
     var users = [];
 
-    for(i in data[1]) {
-      users.push({name : data[1][i][4], email : data[1][i][0]})
+    var globals17 = api.tracker.globals[17];
+    for (i in globals17) {
+      // at least for the delegated inboxes, the index of the mla is not stable
+      // it was observed to be somewhere between 22 and 24, but we should not depend on it
+      data = globals17[i];
+
+      if (data[0] === 'mla') {
+        for(j in data[1]) {
+          users.push({
+            name : data[1][j][4],
+            email : data[1][j][0],
+            index: data[1][j][3]
+          });
+        }
+
+        return users;
+      }
     }
 
     return users;
-  }
+  };
 
 
   api.get.user_email = function() {
     return api.tracker.globals[10];
+  };
+
+
+  api.get.manager_email = function() {
+    if (api.helper.get.is_delegated_inbox()) {
+      return api.get.delegated_to_email();
+    }
+
+    return api.get.user_email();
+  };
+
+
+  api.get.delegated_to_email = function() {
+    if (!api.helper.get.is_delegated_inbox()) {
+      return null;
+    }
+
+    var i, account;
+    var userIndexPrefix = "/u/";
+    var pathname = window.location.pathname;
+    var delegatedToUserIndex = parseInt(pathname.substring(pathname.indexOf(userIndexPrefix) + userIndexPrefix.length), 10);
+
+    var loggedInAccounts = api.get.loggedin_accounts();
+    if (loggedInAccounts && loggedInAccounts.length > 0) {
+      for (i in loggedInAccounts) {
+        account = loggedInAccounts[i];
+        if (account.index === delegatedToUserIndex) {
+          return account.email;
+        }
+      }
+    }
+
+    // as a last resort, we query the DOM of the upper right account selection menu
+    return $(".gb_rb[href$='" + userIndexPrefix + delegatedToUserIndex + "'] .gb_yb").text().split(" ")[0];
   };
 
 
@@ -99,7 +155,7 @@ var Gmail = function(localJQuery) {
 
   api.dom.inbox_content = function() {
     return $('div[role=main]:first');
-  }
+  };
 
 
   api.check.is_preview_pane = function() {
@@ -114,12 +170,12 @@ var Gmail = function(localJQuery) {
     });
 
     return previewPaneFound;
-  }
+  };
 
   api.check.is_multiple_inbox = function() {
     var dom = api.dom.inboxes();
     return dom.length > 1;
-  }
+  };
 
 
   api.check.is_horizontal_split = function() {
@@ -127,28 +183,43 @@ var Gmail = function(localJQuery) {
     var box = dom.find("[gh=tl]").find('.nn');
 
     return box.length == 0;
-  }
+  };
 
 
   api.check.is_vertical_split = function() {
     return api.check.is_horizontal_split() == false;
-  }
+  };
 
 
   api.check.is_tabbed_inbox = function() {
     return $(".aKh").length == 1;
-  }
+  };
 
 
   api.check.is_right_side_chat = function() {
-    return $('.ApVoH')[0].getAttribute('aria-labelledby') == ':wf';
+    var chat = $('.ApVoH');
+    if(chat.length === 0) {
+      return false;
+    }
+
+    return chat[0].getAttribute('aria-labelledby') == ':wf';
+  }
+
+  api.check.should_compose_fullscreen = function(){
+    var bx_scfs = [];
+    try {
+      bx_scfs = api.tracker.globals[17][4][1][32];
+    } catch(er) {
+      bx_scfs = ['bx_scfs','false'];
+    }
+     return (bx_scfs[1] == 'true' ) ? true : false;
   }
 
 
   api.check.is_google_apps_user =function() {
     var email = api.get.user_email();
     return email.indexOf('gmail.com', email.length - 'gmail.com'.length) == -1;
-  }
+  };
 
 
   api.get.storage_info = function() {
@@ -158,13 +229,13 @@ var Gmail = function(localJQuery) {
     var percent = parseFloat(used.replace(/[^0-9\.]/g, '')) * 100 / parseFloat(total.replace(/[^0-9\.]/g, ''));
 
     return {used : used, total : total, percent : Math.floor(percent)}
-  }
+  };
 
 
   api.dom.inboxes = function() {
     var dom = api.dom.inbox_content();
     return dom.find("[gh=tl]");
-  }
+  };
 
   api.dom.email_subject = function () {
     var e = $(".hP");
@@ -173,22 +244,22 @@ var Gmail = function(localJQuery) {
       if($(e[i]).is(':visible')) {
         return $(e[i]);
       }
-    };
+    }
 
     return $();
-  }
+  };
 
 
   api.get.email_subject = function() {
     var subject_dom = api.dom.email_subject();
 
     return subject_dom.text();
-  }
+  };
 
 
   api.dom.email_body = function() {
     return $('.nH.hx');
-  }
+  };
 
   api.dom.toolbar = function() {
     var tb = $("[gh='mtb']");
@@ -198,15 +269,15 @@ var Gmail = function(localJQuery) {
     }
 
     return tb;
-}
+};
 
 
   api.check.is_inside_email = function() {
-    if(api.get.current_page() != null && !api.check.is_preview_pane()) {
+    if(api.get.current_page() != 'email' && !api.check.is_preview_pane()) {
       return false;
     }
 
-    var items = $('.ii.gt');
+    var items = $('.ii.gt .a3s.aXjCH');
     var ids = [];
 
     for(var i=0; i<items.length; i++) {
@@ -219,11 +290,24 @@ var Gmail = function(localJQuery) {
     }
 
     return ids.length > 0;
-  }
+  };
 
+  api.check.is_plain_text = function() {
+    var settings = GLOBALS[17][4][1];
+
+    for (var i = 0; i < settings.length; i++) {
+      var plain_text_setting = settings[i];
+      if (plain_text_setting[0] === 'bx_cm') {
+        return plain_text_setting[1] === '0';
+      }
+    }
+
+    // default to rich text mode, which is more common nowadays
+    return false;
+  };
 
   api.dom.email_contents = function() {
-    var items = $('.ii.gt');
+    var items = $('.ii.gt div.a3s.aXjCH');
     var ids = [];
 
     for(var i=0; i<items.length; i++) {
@@ -237,7 +321,7 @@ var Gmail = function(localJQuery) {
     }
 
     return ids;
-  }
+  };
 
 
   api.get.email_ids = function() {
@@ -246,7 +330,8 @@ var Gmail = function(localJQuery) {
       return Object.keys(data.threads);
     }
     return [];
-  }
+  };
+
 
   api.get.compose_ids = function() {
       var ret = [];
@@ -255,9 +340,10 @@ var Gmail = function(localJQuery) {
           if(dom[i].value != "undefined"){
               ret.push(dom[i].value);
           }
-      };
+      }
       return ret;
-  }
+  };
+
 
   api.get.email_id = function() {
     var hash = null;
@@ -270,7 +356,8 @@ var Gmail = function(localJQuery) {
         for(var i=0; i<items.length; i++) {
           var mail_id = items[i].getAttribute('class').split(' ')[2];
           var is_editable = items[i].getAttribute('contenteditable');
-          if(mail_id != 'undefined' && mail_id != undefined) {
+          var is_visible = items[i].offsetWidth > 0 && items[i].offsetHeight > 0;
+          if(mail_id != 'undefined' && mail_id != undefined && is_visible) {
             if(is_editable != 'true') {
               text.push(mail_id);
             }
@@ -281,46 +368,48 @@ var Gmail = function(localJQuery) {
       } else {
         hash = window.location.hash.split("/").pop().replace(/#/, '').split('?')[0];
       }
-
     }
-
+    else {
+      hash = api.tools.parse_url(window.location.href).th;
+    }
+    
     return hash;
-  }
+  };
 
 
   api.check.is_priority_inbox = function() {
     return $('.qh').length > 0;
-  }
+  };
 
 
   api.check.is_rapportive_installed = function() {
     return $('#rapportive-sidebar').length == 1;
-  }
+  };
 
 
   api.check.is_streak_installed = function() {
     return $("[id^='bentoBox'],[id*=' bentoBox'],[class*=' bentoBox'],[class*='bentoBox']").length > 0;
-  }
+  };
 
 
   api.check.is_anydo_installed = function() {
     return $("[id^='anydo'],[id*=' anydo'],[class*=' anydo'],[class*='anydo']").length > 0;
-  }
+  };
 
 
   api.check.is_boomerang_installed = function() {
     return $("[id^='b4g_'],[id*=' b4g_'],[class*=' b4g_'],[class*='b4g_']").length > 0;
-  }
+  };
 
 
   api.check.is_xobni_installed = function() {
     return $('#xobni_frame').length > 0;
-  }
+  };
 
 
   api.check.is_signal_installed = function() {
     return $("[id^='Signal'],[id*=' Signal'],[class*=' signal'],[class*='signal']").length > 0;
-  }
+  };
 
 
   api.check.are_shortcuts_enabled = function() {
@@ -329,7 +418,7 @@ var Gmail = function(localJQuery) {
 
     var check = true; // Flag possibly missing in convo view.
 
-    var array_with_flag = api.tracker.globals[17][5][1];
+    var array_with_flag = api.tracker.globals[17][4][1];
 
     for(var i=0; i<array_with_flag.length; i++) {
       var current = array_with_flag[i];
@@ -344,29 +433,29 @@ var Gmail = function(localJQuery) {
       var values = {
         '0': true,
         '1': false
-      }
+      };
 
       check = values[flag_value];
     }
 
     return check;
-  }
+  };
 
 
   api.dom.get_left_sidebar_links = function() {
     return $("div[role=navigation] [title]");
-  }
+  };
 
 
   api.dom.search_bar = function() {
     return $("[gh=sb]");
-  }
+  };
 
 
   api.get.search_query = function() {
     var dom = api.dom.search_bar();
     return dom.find('input')[0].value;
-  }
+  };
 
 
   api.get.unread_inbox_emails = function() {
@@ -379,7 +468,7 @@ var Gmail = function(localJQuery) {
     }
 
     return 0;
-  }
+  };
 
 
   api.get.unread_draft_emails = function() {
@@ -392,7 +481,7 @@ var Gmail = function(localJQuery) {
     }
 
     return 0;
-  }
+  };
 
 
   api.get.unread_spam_emails = function() {
@@ -405,7 +494,7 @@ var Gmail = function(localJQuery) {
     }
 
     return 0;
-  }
+  };
 
 
   api.get.unread_forum_emails = function() {
@@ -418,7 +507,7 @@ var Gmail = function(localJQuery) {
     }
 
     return 0;
-  }
+  };
 
 
   api.get.unread_update_emails = function() {
@@ -431,7 +520,7 @@ var Gmail = function(localJQuery) {
     }
 
     return 0;
-  }
+  };
 
 
   api.get.unread_promotion_emails = function() {
@@ -444,7 +533,7 @@ var Gmail = function(localJQuery) {
     }
 
     return 0;
-  }
+  };
 
 
   api.get.unread_social_emails = function() {
@@ -457,16 +546,16 @@ var Gmail = function(localJQuery) {
     }
 
     return 0;
-  }
+  };
 
 
   api.get.beta = function() {
     var features = {
                     "new_nav_bar" : $('#gbz').length == 0
-                   }
+                   };
 
     return features;
-  }
+  };
 
 
   api.get.unread_emails = function() {
@@ -477,7 +566,7 @@ var Gmail = function(localJQuery) {
              update        : api.get.unread_update_emails(),
              promotions    : api.get.unread_promotion_emails(),
              social        : api.get.unread_social_emails() }
-  }
+  };
 
 
   api.tools.error = function(str) {
@@ -486,7 +575,7 @@ var Gmail = function(localJQuery) {
     } else {
       throw(str);
     }
-  }
+  };
 
   api.tools.parse_url = function(url) {
     var regex = /[?&]([^=#]+)=([^&#]*)/g;
@@ -498,7 +587,7 @@ var Gmail = function(localJQuery) {
     }
 
     return params;
-  }
+  };
 
   api.tools.sleep = function(milliseconds) {
     var start = new Date().getTime();
@@ -507,7 +596,7 @@ var Gmail = function(localJQuery) {
         break;
       }
     }
-  }
+  };
 
 
   api.tools.multitry = function(delay, tries, func, check, counter, retval) {
@@ -515,23 +604,24 @@ var Gmail = function(localJQuery) {
       return retval;
     }
 
-    var counter = (counter == undefined) ? 0 : counter;
+    counter = (counter == undefined) ? 0 : counter;
+
     var value = func();
 
     if(check(value)) {
       return value;
     } else {
-      api.tools.sleep(delay)
-      api.tools.multitry(delay, tries, func, check, counter+1, value)
+      api.tools.sleep(delay);
+      api.tools.multitry(delay, tries, func, check, counter+1, value);
     }
-  }
+  };
 
 
   api.tools.deparam = function (params, coerce) {
 
     var each = function (arr, fnc) {
       var data = [];
-      for (i = 0; i < arr.length; i++) {
+      for (var i = 0; i < arr.length; i++) {
         data.push(fnc(arr[i]));
       }
       return data;
@@ -586,17 +676,13 @@ var Gmail = function(localJQuery) {
       }
     });
     return obj;
-  }
+  };
 
   api.tools.parse_actions = function(params, xhr) {
 
     // upload_attachment event - if found, don't check other observers. See issue #22
     if(params.url.act == 'fup' || params.url.act == 'fuv' || params.body_is_object) {
       return params.body_is_object && api.observe.bound('upload_attachment') ? { upload_attachment: [ params.body_params ] } : false; // trigger attachment event
-    }
-
-    if(params.method == 'POST' && typeof params.url.act == 'string') {
-      // console.log(params.url, params.body);
     }
 
     if(params.url.search != undefined) {
@@ -636,10 +722,14 @@ var Gmail = function(localJQuery) {
                       'rtr'         : 'restore_message_in_thread',
                       'open_email'  : 'open_email',
                       'toggle_threads'  : 'toggle_threads'
-                     }
+                     };
 
     if(typeof params.url.ik == 'string') {
       api.tracker.ik = params.url.ik;
+    }
+
+    if(typeof params.url.at == 'string') {
+      api.tracker.at = params.url.at
     }
 
     if(typeof params.url.rid == 'string') {
@@ -699,7 +789,7 @@ var Gmail = function(localJQuery) {
 
     }
 
-    if(typeof params.url._reqid == 'string' && typeof params.url.th == 'string') {
+    if(typeof params.url._reqid == 'string' && params.url.view === 'tl' && params.url.auto != undefined) {
       response = [params.url.th, params.url, params.body];
       if(api.observe.bound('new_email')) {
         triggered.new_email = response;
@@ -743,11 +833,19 @@ var Gmail = function(localJQuery) {
         triggered.refresh = response;
       }
     }
+
     if(response && action_map[action] && api.observe.bound(action_map[action])) {
       triggered[action_map[action]] = response;
     }
+
+    if(params.method == 'POST' && (typeof params.url.SID == 'string'
+                                   || typeof params.url.ik == 'string'
+                                   || typeof params.url.act == 'string')) {
+      triggered.http_event = [params]; // send every event and all data
+    }
+
     return triggered;
-  }
+  };
 
   api.tools.parse_response = function(response) {
       var parsedResponse = [],
@@ -768,12 +866,12 @@ var Gmail = function(localJQuery) {
           dataLength = response.substring(0, response.indexOf('[')).replace(/\s/g, '');
           if (!dataLength) {dataLength = response.length;}
 
-          // get raw data
           endIndex = (parseInt(dataLength, 10) - 2) + response.indexOf('[');
           data = response.substring(response.indexOf('['), endIndex);
 
-          // eval raw data
-          realData = eval(data);
+          var get_data = new Function('"use strict"; return ' + data);
+          realData = get_data();
+
           parsedResponse.push(realData);
 
           // prepare response for next loop
@@ -785,7 +883,7 @@ var Gmail = function(localJQuery) {
       }
 
       return parsedResponse;
-  }
+  };
 
   api.tools.parse_requests = function(params, xhr) {
     params.url_raw = params.url;
@@ -817,20 +915,21 @@ var Gmail = function(localJQuery) {
       api.tracker.actions.pop();
     }
     return events;
-  }
+  };
 
 
   api.tools.xhr_watcher = function () {
+
     if (!api.tracker.xhr_init) {
-      var win = top.document.getElementById("js_frame").contentDocument.defaultView;
-
       api.tracker.xhr_init = true;
-      api.tracker.xhr_open = win.XMLHttpRequest.prototype.open;
-      api.tracker.xhr_send = win.XMLHttpRequest.prototype.send;
+      var win = top.document.getElementById("js_frame") ? top.document.getElementById("js_frame").contentDocument.defaultView : window.opener.top.document.getElementById("js_frame").contentDocument.defaultView;
 
-      win.XMLHttpRequest.prototype._gjs_open = win.XMLHttpRequest.prototype.open;
+      if (!win.XMLHttpRequest.prototype._gjs_open) {
+        win.XMLHttpRequest.prototype._gjs_open = win.XMLHttpRequest.prototype.open;
+      }
+
       win.XMLHttpRequest.prototype.open = function (method, url, async, user, password) {
-        var out = this._gjs_open.apply(this, arguments);
+        var out = win.XMLHttpRequest.prototype._gjs_open.apply(this, arguments);
         this.xhrParams = {
           method: method.toString(),
           url: url.toString()
@@ -838,9 +937,11 @@ var Gmail = function(localJQuery) {
         return out;
       };
 
-      win.XMLHttpRequest.prototype._gjs_send = win.XMLHttpRequest.prototype.send;
-      win.XMLHttpRequest.prototype.send = function (body) {
+      if (!win.XMLHttpRequest.prototype._gjs_send) {
+        win.XMLHttpRequest.prototype._gjs_send = win.XMLHttpRequest.prototype.send;
+      }
 
+      win.XMLHttpRequest.prototype.send = function (body) {
         // parse the xhr request to determine if any events should be triggered
         var events = false;
         if (this.xhrParams) {
@@ -853,7 +954,7 @@ var Gmail = function(localJQuery) {
 
           // if before events were fired, rebuild arguments[0]/body strings
           // TODO: recreate the url if we want to support manipulating url args (is there a use case where this would be needed?)
-          body = arguments[0] = this.xhrParams.body_is_object ? this.xhrParams.body_params : $.param(this.xhrParams.body_params,true);
+          body = arguments[0] = this.xhrParams.body_is_object ? this.xhrParams.body_params : $.param(this.xhrParams.body_params,true).replace(/\+/g, "%20");
         }
 
         // if any matching after events, bind onreadystatechange callback
@@ -879,17 +980,17 @@ var Gmail = function(localJQuery) {
         return out;
       }
     }
-  }
+  };
 
 
   api.observe.http_requests = function() {
     return api.tracker.events;
-  }
+  };
 
 
   api.observe.actions = function() {
     return api.tracker.actions;
-  }
+  };
 
   /**
     Bind a specified callback to an array of callbacks against a specified type & action
@@ -926,7 +1027,7 @@ var Gmail = function(localJQuery) {
     api.tracker.bound[action] = typeof api.tracker.bound[action] == 'undefined' ? 1 : api.tracker.bound[action]+1;
     api.tracker.bound[type] = typeof api.tracker.bound[type] == 'undefined' ? 1 : api.tracker.bound[type]+1;
     //api.tracker.watchdog[action] = callback;
-  }
+  };
 
   /**
     an on event is observed just after gmail sends an xhr request
@@ -941,7 +1042,7 @@ var Gmail = function(localJQuery) {
     if (response_callback) {
       api.observe.after(action, callback);
     }
-  }
+  };
 
   /**
     an before event is observed just prior to the gmail xhr request being sent
@@ -949,7 +1050,7 @@ var Gmail = function(localJQuery) {
    */
   api.observe.before = function(action, callback) {
     api.observe.bind('before', action, callback);
-  }
+  };
 
   /**
     an after event is observed when the gmail xhr request returns from the server
@@ -957,7 +1058,7 @@ var Gmail = function(localJQuery) {
    */
   api.observe.after = function(action, callback) {
     api.observe.bind('after', action, callback);
-  }
+  };
 
   /**
     Checks if a specified action & type has anything bound to it
@@ -982,7 +1083,7 @@ var Gmail = function(localJQuery) {
       if(type) return api.tracker.bound[type] > 0;
       api.tools.error('api.observe.bound called with invalid args');
     }
-  }
+  };
 
   /**
     Clear all callbacks for a specific type (before, on, after, dom) and action
@@ -993,14 +1094,6 @@ var Gmail = function(localJQuery) {
 
     // if watchdog is not set, bind has not yet been called so nothing to turn off
     if(typeof api.tracker.watchdog != "object") return true;
-
-    // if clearing everything, stop watching xhr
-    if(!type && !action) {
-      var win = top.document.getElementById("js_frame").contentDocument.defaultView;
-      win.XMLHttpRequest.prototype.open = api.tracker.xhr_open;
-      win.XMLHttpRequest.prototype.send = api.tracker.xhr_send;
-      api.tracker.xhr_init = false
-    }
 
     // loop through applicable types
     var types = type ? [ type ] : [ 'before', 'on', 'after', 'dom' ];
@@ -1024,7 +1117,7 @@ var Gmail = function(localJQuery) {
         });
       }
     });
-  }
+  };
 
   /**
     Trigger any specified events bound to the passed type
@@ -1047,7 +1140,7 @@ var Gmail = function(localJQuery) {
       }
     });
     return fired;
-  }
+  };
 
   /**
     Trigger any specified DOM events passing a specified element & optional handler
@@ -1066,7 +1159,7 @@ var Gmail = function(localJQuery) {
     $.each(api.tracker.watchdog.dom[observer], function(idx, callback) {
       handler(element, callback);
     });
-  }
+  };
 
   // pre-configured DOM observers
   // map observers to DOM class names
@@ -1154,7 +1247,7 @@ var Gmail = function(localJQuery) {
             // reset matches so no future delayed instances of this function execute
             api.tracker.recipient_matches = [];
           },100);
-        },
+        }
       },
 
       // this will fire if a new compose, reply or forward is created. it won't fire if a reply changes to a forward & vice versa
@@ -1176,7 +1269,7 @@ var Gmail = function(localJQuery) {
           }
           callback(match,type);
         }
-      },
+      }
     };
 
     // support extending with custom observers
@@ -1194,7 +1287,7 @@ var Gmail = function(localJQuery) {
       })
     });
     //console.log( 'observer_config', api.tracker.dom_observers, 'dom_observer_map', api.tracker.dom_observer_map);
-  }
+  };
 
   /**
     Allow an application to register a custom DOM observer specific to their app.
@@ -1239,7 +1332,7 @@ var Gmail = function(localJQuery) {
     } else {
       api.tracker.custom_dom_observers[action] = config;
     }
-  }
+  };
 
   /**
     Observe DOM nodes being inserted. When a node with a class defined in api.tracker.dom_observers is inserted,
@@ -1269,6 +1362,24 @@ var Gmail = function(localJQuery) {
         $(window.document).bind('DOMNodeInserted', function(e) {
           api.tools.insertion_observer(e.target, api.tracker.dom_observers, api.tracker.dom_observer_map);
         });
+
+        // recipient_change also needs to listen to removals
+        var mutationObserver = new MutationObserver(function(mutations) {
+          for (var i = 0; i < mutations.length; i++) {
+            var mutation = mutations[i];
+            var removedNodes = mutation.removedNodes;
+            for (var j = 0; j < removedNodes.length; j++) {
+              var removedNode = removedNodes[j];
+              if (removedNode.className == 'vR') {
+                var observer = api.tracker.dom_observer_map['vR'];
+                var handler = api.tracker.dom_observers.recipient_change.handler;
+                api.observe.trigger_dom(observer, $(mutation.target), handler);
+              }
+            }
+          }
+        });
+        mutationObserver.observe(document.body, {subtree: true, childList: true});
+
       }
       api.observe.bind('dom',action,callback);
       // console.log(api.tracker.observing_dom,'dom_watchdog is now:',api.tracker.dom_watchdog);
@@ -1297,7 +1408,7 @@ var Gmail = function(localJQuery) {
       }, delay);
       return true;
     }
-  }
+  };
 
   // observes every element inserted into the DOM by Gmail and looks at the classes on those elements,
   // checking for any configured observers related to those classes
@@ -1306,7 +1417,8 @@ var Gmail = function(localJQuery) {
     if(!api.tracker.dom_observer_map) return;
 
     // loop through each of the inserted elements classes & check for a defined observer on that class
-    var classes = target.className.trim().split(/\s+/);
+    var cn = target.className || '';
+    var classes = cn.trim().split(/\s+/);
     if(!classes.length) classes.push(''); // if no class, then check for anything observing nodes with no class
     $.each(classes, function(idx, className) {
       var observer = dom_observer_map[className];
@@ -1353,16 +1465,31 @@ var Gmail = function(localJQuery) {
         }
       }
     });
-  }
+  };
 
 
   api.tools.make_request = function (link, method) {
+    link = decodeURIComponent(link);
+    method  = (typeof method == undefined || typeof method == null) ? 'GET' : method;
 
-    var method  = (typeof method == undefined || typeof method == null) ? 'GET' : method;
     var request = $.ajax({ type: method, url: encodeURI(link), async:false });
 
     return request.responseText;
-  }
+  };
+
+
+  api.tools.make_request_async = function (link, method, callback) {
+    link = decodeURIComponent(link);
+    method  = (typeof method == undefined || typeof method == null) ? 'GET' : method;
+
+    $.ajax({ type: method, url: encodeURI(link), async:true, dataType: 'text' })
+      .done(function(data, textStatus, jqxhr) {
+        callback(jqxhr.responseText);
+      })
+      .fail(function(jqxhr, textStatus, errorThrown) {
+        console.error('Request Failed', errorThrown);
+      });
+  };
 
 
   api.tools.parse_view_data = function(view_data) {
@@ -1393,16 +1520,23 @@ var Gmail = function(localJQuery) {
     }
 
     return parsed;
-  }
+  };
 
 
-  api.get.visible_emails = function() {
+  api.helper.get.is_delegated_inbox = function() {
+    return api.tracker.globals[17][5][0] === 'fwd';
+  };
+
+
+  api.helper.get.visible_emails_pre = function() {
     var page = api.get.current_page();
-    var url = window.location.origin + window.location.pathname + '?ui=2&ik=' + api.tracker.ik+'&rid=' + api.tracker.rid + '&view=tl&start=0&num=120&rt=1';
+    var url = window.location.origin + window.location.pathname + '?ui=2&ik=' + api.tracker.ik+'&rid=' + api.tracker.rid + '&at=' + api.tracker.at + '&view=tl&start=0&num=120&rt=1';
 
     if(page.indexOf('label/') == 0) {
       url += '&cat=' + page.split('/')[1] +'&search=cat';
     } else if(page.indexOf('category/') == 0) {
+      var cat_label = "";
+
       if(page.indexOf('forums') != -1) {
         cat_label = 'group';
       } else if(page.indexOf('updates') != -1) {
@@ -1420,16 +1554,24 @@ var Gmail = function(localJQuery) {
     }else {
       url += '&search=' + page;
     }
+    return url;
+  };
 
-    var get_data = api.tools.make_request(url);
-        get_data = get_data.substring(get_data.indexOf('['), get_data.length);
-        get_data = 'api.tracker.view_data = ' + get_data;
 
-    eval(get_data)
-
+  api.helper.get.visible_emails_post = function(get_data) {
     var emails = [];
 
-    for(i in api.tracker.view_data) {
+    if (!get_data) {
+        return emails;
+    }
+
+    get_data = get_data.substring(get_data.indexOf('['), get_data.length);
+    get_data = '"use strict"; return ' + get_data;
+    get_data = new Function(get_data);
+
+    api.tracker.view_data = get_data();
+
+    for(var i in api.tracker.view_data) {
       if (typeof(api.tracker.view_data[i]) === 'function') {
         continue;
       }
@@ -1439,9 +1581,27 @@ var Gmail = function(localJQuery) {
         $.merge(emails, cdata);
       }
     }
+    return emails;
+  };
+
+
+  api.get.visible_emails = function() {
+    var url = api.helper.get.visible_emails_pre();
+    var get_data = api.tools.make_request(url);
+    var emails = api.helper.get.visible_emails_post(get_data);
 
     return emails;
-  }
+  };
+
+
+  api.get.visible_emails_async = function(callback) {
+    var url = api.helper.get.visible_emails_pre();
+    api.tools.make_request_async(url, 'GET', function(get_data) {
+      var emails = api.helper.get.visible_emails_post(get_data);
+      callback(emails);
+    });
+  };
+
 
   api.get.selected_emails_data = function(){
     var selected_emails = [];
@@ -1460,11 +1620,12 @@ var Gmail = function(localJQuery) {
       selected_emails.push(api.get.email_data());
     }
     return selected_emails;
-  }
+  };
 
   api.get.current_page = function() {
-    var hash  = window.location.hash.split('#').pop();
-    var pages = ['sent', 'inbox', 'starred', 'drafts', 'imp', 'chats', 'all', 'spam', 'trash', 'settings'];
+    var hash  = window.location.hash.split('#').pop().split('?').shift() || 'inbox';
+    var pages = ['sent', 'inbox', 'starred', 'drafts', 'imp', 'chats', 'all', 'spam', 'trash',
+                 'settings', 'label', 'category', 'circle', 'search'];
 
     var page = null;
 
@@ -1472,14 +1633,12 @@ var Gmail = function(localJQuery) {
       page = hash;
     }
 
-    if(hash.indexOf('label/') == 0 || hash.indexOf('category/') == 0 || hash.indexOf('search/') == 0 || hash.indexOf('settings/') == 0) {
-      if(hash.split('/').length < 3) {
-        page = hash;
-      }
+    if(hash.indexOf('inbox/') !== -1) {
+      page = 'email';
     }
 
-    return page;
-  }
+    return page || hash;
+  };
 
 
   api.tools.infobox = function(message, time, html){
@@ -1508,7 +1667,7 @@ var Gmail = function(localJQuery) {
         top.removeAttr("style");                    // dito
       }
     }
-  }
+  };
 
   /**
    * Re-renders the UI using the available data.
@@ -1553,13 +1712,26 @@ var Gmail = function(localJQuery) {
 
       if (callback) callback();
     }, 0);
-  }
+  };
+
+  api.tools.get_reply_to = function(ms13) {
+    // reply to is an array if exists
+    var reply_to = (ms13 != undefined) ? ms13[4] : [];
+
+    // if reply to set get email from it and return it
+    if (reply_to.length !== 0) {
+      return api.tools.extract_email_address(reply_to[0]);
+    }
+
+    // otherwise return null
+    return null;
+  };
 
   api.tools.parse_email_data = function(email_data) {
     var data = {};
-    var threads = {}
+    var threads = {};
 
-    for(i in email_data) {
+    for(var i in email_data) {
       var x = email_data[i];
       if(x[0] == 'cs') {
         data.thread_id = x[1];
@@ -1589,6 +1761,7 @@ var Gmail = function(localJQuery) {
         data.threads[x[1]].to = (x[13] != undefined) ? x[13][1] : ((x[37] != undefined) ? x[37][1]:[]);
         data.threads[x[1]].cc = (x[13] != undefined) ? x[13][2] : [];
         data.threads[x[1]].bcc = (x[13] != undefined) ? x[13][3] : [];
+        data.threads[x[1]].reply_to = api.tools.get_reply_to(x[13]);
 
         try { // jQuery will sometime fail to parse x[13][6], if so, putting the raw HTML
           data.threads[x[1]].content_plain = (x[13] != undefined) ? $(x[13][6]).text() : x[8];
@@ -1600,42 +1773,95 @@ var Gmail = function(localJQuery) {
     }
 
     return data;
-  }
+  };
+
+
+  api.helper.get.email_data_pre = function(email_id) {
+    if(api.check.is_inside_email() && email_id == undefined) {
+      email_id = api.get.email_id();
+    }
+
+    var url = null;
+    if(email_id != undefined) {
+      url = window.location.origin + window.location.pathname + '?ui=2&ik=' + api.tracker.ik + '&rid=' + api.tracker.rid + '&view=cv&th=' + email_id + '&msgs=&mb=0&rt=1&search=mbox';
+    }
+    return url;
+  };
+
+
+  api.helper.get.email_data_post = function(get_data) {
+    if (!get_data) {
+        return {};
+    }
+    get_data = get_data.substring(get_data.indexOf('['), get_data.length);
+    get_data = '"use strict"; return ' + get_data;
+    get_data = new Function(get_data);
+
+    var cdata = get_data();
+
+    api.tracker.email_data = cdata[0];
+    return api.tools.parse_email_data(api.tracker.email_data);
+  };
 
 
   api.get.email_data = function(email_id) {
+    var url = api.helper.get.email_data_pre(email_id);
 
-    if(api.check.is_inside_email() && email_id == undefined) {
-      email_id = api.get.email_id();
-    }
-
-    if(email_id != undefined) {
-      var url = window.location.origin + window.location.pathname + '?ui=2&ik=' + api.tracker.ik + '&rid=' + api.tracker.rid + '&view=cv&th=' + email_id + '&msgs=&mb=0&rt=1&search=mbox';
+    if (url != null) {
       var get_data = api.tools.make_request(url);
-          get_data = get_data.substring(get_data.indexOf('['), get_data.length);
-          get_data = 'var cdata = ' + get_data;
-
-      eval(get_data);
-
-      api.tracker.email_data = cdata[0];
-
-      return api.tools.parse_email_data(api.tracker.email_data);
+      var email_data = api.helper.get.email_data_post(get_data);
+      return email_data;
     }
 
     return {};
-  }
+  };
 
-  api.get.email_source = function(email_id) {
+
+  api.get.email_data_async = function(email_id, callback) {
+    var url = api.helper.get.email_data_pre(email_id);
+    if (url != null) {
+      api.tools.make_request_async(url, 'GET', function (get_data) {
+        var email_data = api.helper.get.email_data_post(get_data);
+        callback(email_data);
+      });
+    } else {
+      callback({});
+    }
+  };
+
+
+  api.helper.get.email_source_pre = function(email_id) {
     if(api.check.is_inside_email() && email_id == undefined) {
       email_id = api.get.email_id();
     }
 
+    var url = null;
     if(email_id != undefined) {
-      var url = window.location.origin + window.location.pathname + '?ui=2&ik=' + api.tracker.ik + '&view=om&th=' + email_id;
+      url = window.location.origin + window.location.pathname + '?ui=2&ik=' + api.tracker.ik + '&view=om&th=' + email_id;
+    }
+
+    return url;
+  };
+
+
+  api.get.email_source = function(email_id) {
+    var url = api.helper.get.email_source_pre(email_id);
+    if (url != null) {
       return api.tools.make_request(url);
     }
     return '';
-  }
+  };
+
+
+  api.get.email_source_async = function(email_id, callback) {
+    var url = api.helper.get.email_source_pre(email_id);
+    if (url != null) {
+      api.tools.make_request_async(url, 'GET', callback);
+    } else {
+      callback('');
+    }
+  };
+
 
   api.get.displayed_email_data = function() {
     var email_data = api.get.email_data();
@@ -1650,7 +1876,7 @@ var Gmail = function(localJQuery) {
       var hash = window.location.hash.split('#')[1] || '';
       var is_in_trash = (hash.indexOf('trash') === 0);
 
-      for (id in threads) {
+      for (var id in threads) {
         var email = threads[id];
         var keep_email = (is_in_trash) ? email.is_deleted : !email.is_deleted;
 
@@ -1664,7 +1890,8 @@ var Gmail = function(localJQuery) {
     }
     else { // Supposing only one displayed email.
       for (id in email_data.threads) {
-        var displayed_email_element = $('.ii.gt[class*="' + id + '"]');
+        var message_class_id = 'm'+id;
+        var displayed_email_element = $('.ii.gt .a3s.aXjCH.' + message_class_id);
 
         if (displayed_email_element.length > 0) {
           var email = email_data.threads[id];
@@ -1699,14 +1926,14 @@ var Gmail = function(localJQuery) {
     }
 
     return displayed_email_data;
-  }
+  };
 
 
   api.check.is_conversation_view = function() {
     var flag_name = 'bx_vmb';
     var flag_value = undefined;
 
-    var array_with_flag = api.tracker.globals[17][5][1];
+    var array_with_flag = api.tracker.globals[17][4][1];
 
     for (var i = 0; i < array_with_flag.length; i++) {
       var current = array_with_flag[i];
@@ -1719,7 +1946,7 @@ var Gmail = function(localJQuery) {
     }
 
     return flag_value === '0' || flag_value === undefined;
-  }
+  };
 
 
   api.tools.extract_email_address = function(str) {
@@ -1727,7 +1954,7 @@ var Gmail = function(localJQuery) {
     var matches = (str) ? str.match(regex) : undefined;
 
     return (matches) ? matches[0] : undefined;
-  }
+  };
 
 
   api.tools.extract_name = function(str) {
@@ -1735,7 +1962,7 @@ var Gmail = function(localJQuery) {
     var matches = (str) ? str.match(regex) : undefined;
 
     return (matches && matches[0]) ? matches[0].trim() : undefined;
-  }
+  };
 
 
   api.tools.i18n = function(label) {
@@ -1782,9 +2009,9 @@ var Gmail = function(localJQuery) {
     }
 
     return dictionary[label];
-  }
+  };
 
-  api.tools.add_toolbar_button = function(content, onClickFunction,styleClass) {
+  api.tools.add_toolbar_button = function(content_html, onClickFunction, styleClass) {
     var container = $(document.createElement('div'));
     container.attr('class','G-Ni J-J5-Ji');
 
@@ -1799,7 +2026,7 @@ var Gmail = function(localJQuery) {
     }
     button.attr('class', buttonClasses);
 
-    button.html(content);
+    button.html(content_html);
     button.click(onClickFunction);
 
     var content = $(document.createElement('div'));
@@ -1810,20 +2037,113 @@ var Gmail = function(localJQuery) {
     api.dom.toolbar().append(container);
 
     return container;
-  }
+  };
 
-  api.tools.add_compose_button =  function(composeWindow, content, onClickFunction, styleClass) {
+  api.tools.add_compose_button =  function(composeWindow, content_html, onClickFunction, styleClass) {
     var button = $(document.createElement('div'));
     var buttonClasses = 'T-I J-J5-Ji aoO L3 ';
     if(styleClass != undefined){
       buttonClasses += styleClass;
     }
     button.attr('class', buttonClasses);
-    button.html(content);
+    button.html(content_html);
     button.click(onClickFunction);
 
     composeWindow.find('.gU.Up  > .J-J5-Ji').append(button);
-  }
+
+    return button;
+  };
+
+  api.tools.remove_modal_window = function() {
+    $('#gmailJsModalBackground').remove();
+    $('#gmailJsModalWindow').remove();
+  };
+
+  api.tools.add_modal_window = function(title, content_html, onClickOk, onClickCancel, onClickClose) {
+    // By default, clicking on cancel or close should clean up the modal window
+    onClickClose = onClickClose || api.tools.remove_modal_window;
+    onClickCancel = onClickCancel || api.tools.remove_modal_window;
+
+    var background = $(document.createElement('div'));
+    background.attr('id','gmailJsModalBackground');
+    background.attr('class','Kj-JD-Jh');
+    background.attr('aria-hidden','true');
+    background.attr('style','opacity:0.75;width:100%;height:100%;');
+
+    // Modal window wrapper
+    var container = $(document.createElement('div'));
+    container.attr('id','gmailJsModalWindow');
+    container.attr('class', 'Kj-JD');
+    container.attr('tabindex', '0');
+    container.attr('role', 'alertdialog');
+    container.attr('aria-labelledby', 'gmailJsModalWindowTitle');
+    container.attr('style', 'left:50%;top:50%;opacity:1;');
+
+    // Modal window header contents
+    var header = $(document.createElement('div'));
+    header.attr('class', 'Kj-JD-K7 Kj-JD-K7-GIHV4');
+
+    var heading = $(document.createElement('span'));
+    heading.attr('id', 'gmailJsModalWindowTitle');
+    heading.attr('class', 'Kj-JD-K7-K0');
+    heading.attr('role', 'heading');
+    heading.html(title);
+
+    var closeButton = $(document.createElement('span'));
+    closeButton.attr('id', 'gmailJsModalWindowClose');
+    closeButton.attr('class', 'Kj-JD-K7-Jq');
+    closeButton.attr('role', 'button');
+    closeButton.attr('tabindex', '0');
+    closeButton.attr('aria-label', 'Close');
+    closeButton.click(onClickClose);
+
+    header.append(heading);
+    header.append(closeButton);
+
+    // Modal window contents
+    var contents = $(document.createElement('div'));
+    contents.attr('id', 'gmailJsModalWindowContent');
+    contents.attr('class', 'Kj-JD-Jz');
+    contents.html(content_html);
+
+    // Modal window controls
+    var controls = $(document.createElement('div'));
+    controls.attr('class', 'Kj-JD-Jl');
+
+    var okButton = $(document.createElement('button'));
+    okButton.attr('id', 'gmailJsModalWindowOk');
+    okButton.attr('class', 'J-at1-auR J-at1-atl');
+    okButton.attr('name', 'ok');
+    okButton.text('OK');
+    okButton.click(onClickOk);
+
+    var cancelButton = $(document.createElement('button'));
+    cancelButton.attr('id', 'gmailJsModalWindowCancel');
+    cancelButton.attr('name', 'cancel');
+    cancelButton.text('Cancel');
+    cancelButton.click(onClickCancel);
+
+    controls.append(okButton);
+    controls.append(cancelButton);
+
+    container.append(header);
+    container.append(contents);
+    container.append(controls);
+
+    $(document.body).append(background);
+    $(document.body).append(container);
+
+    var center = function() {
+      container.css({
+        top: ($(window).height() - container.outerHeight()) / 2,
+        left: ($(window).width() - container.outerWidth()) / 2
+      });
+    };
+
+    center();
+
+    $(window).resize(center);
+  };
 
   api.chat.is_hangouts = function() {
     if(api.tracker.hangouts != undefined) {
@@ -1848,43 +2168,50 @@ var Gmail = function(localJQuery) {
       return true;
     }
 
-    var chatWindows = $('.nH.nn', dw);
+    chatWindows = $('.nH.nn', dw);
+
     if(chatWindows.length > 2) {
       // classic
       api.tracker.hangouts = false;
       return false;
     }
     return undefined;
-  }
+  };
 
   // retrieve queue of compose window dom objects
   // latest compose at the start of the queue (index 0)
   api.dom.composes = function() {
-    objs = [];
+    var objs = [];
     $('div.M9').each(function(idx, el) {
       objs.push( new api.dom.compose(el));
     });
     return objs;
-  }
+  };
 
   /**
     A compose object. Represents a compose window in the DOM and provides a bunch of methods and properties to access & interact with the window
     Expects a jQuery DOM element for the compose div
-    TODO: Make to, cc, cc etc functions receive an argument to set these fields
    */
   api.dom.compose = function(element) {
     element = $(element);
     if(!element || (!element.hasClass('M9') && !element.hasClass('AD'))) api.tools.error('api.dom.compose called with invalid element');
     this.$el = element;
     return this;
-  }
-  $.extend(api.dom.compose.prototype, {
+  };
 
+  $.extend(api.dom.compose.prototype, {
     /**
       Retrieve the compose id
      */
     id: function() {
       return this.dom('id').val();
+    },
+
+    /**
+      Retrieve the draft email id
+     */
+    email_id: function() {
+      return this.dom('draft').val();
     },
 
     /**
@@ -1919,26 +2246,23 @@ var Gmail = function(localJQuery) {
 
     /**
       Retrieve the current 'to' recipients
-      TODO: ability to set
      */
     to: function(to) {
-      return this.recipients( { type: 'to', flat: true } );
+      return this.dom('to').val(to);
     },
 
     /**
       Retrieve the current 'cc' recipients
-      TODO: ability to set
      */
-    cc: function() {
-      return this.recipients( { type: 'cc', flat: true } );
+    cc: function(cc) {
+      return this.dom('cc').val(cc);
     },
 
     /**
       Retrieve the current 'bcc' recipients
-      TODO: ability to set
      */
-    bcc: function() {
-      return this.recipients( { type: 'bcc', flat: true } );
+    bcc: function(bcc) {
+      return this.dom('bcc').val(bcc);
     },
 
     /**
@@ -1951,6 +2275,21 @@ var Gmail = function(localJQuery) {
       if(subject) this.dom('all_subjects').val(subject);
       subject = this.dom('subjectbox').val();
       return subject ? subject : this.dom('subject').val();
+    },
+
+    /**
+      Get the from email
+      if user only has one email account they can send from, returns that email address
+      */
+    from: function() {
+      var el = this.dom('from');
+      if (el.length) {
+        var fromNameAndEmail = el.val();
+        if (fromNameAndEmail) {
+          return gmail.tools.extract_email_address(fromNameAndEmail);
+        }
+      }
+      return gmail.get.user_email();
     },
 
     /**
@@ -1975,13 +2314,18 @@ var Gmail = function(localJQuery) {
     dom: function(lookup) {
       if (!lookup) return this.$el;
       var config = {
+        to:'textarea[name=to]',
+        cc:'textarea[name=cc]',
+        bcc:'textarea[name=bcc]',
         id: 'input[name=composeid]',
+        draft: 'input[name=draft]',
         subject: 'input[name=subject]',
         subjectbox: 'input[name=subjectbox]',
         all_subjects: 'input[name=subjectbox], input[name=subject]',
         body: 'div[contenteditable=true]',
         reply: 'M9',
         forward: 'M9',
+        from: 'input[name=from]'
       };
       if(!config[lookup]) api.tools.error('Dom lookup failed. Unable to find config for \'' + lookup + '\'',config,lookup,config[lookup]);
       return this.$el.find(config[lookup]);
@@ -1997,7 +2341,8 @@ var Gmail = function(localJQuery) {
   api.dom.email = function(element) {
     if (typeof element == 'string') {
       this.id = element;
-      this.id_element = $('div.ii.gt.m' + this.id);
+      var message_class_id = 'm' + this.id;
+      this.id_element = $('div.ii.gt div.a3s.aXjCH.' + message_class_id);
       element = this.id_element.closest('div.adn');
     } else {
       element = $(element);
@@ -2006,12 +2351,19 @@ var Gmail = function(localJQuery) {
 
     // if no id specified, extract from the body wrapper class (starts with 'm' followed by the id)
     if (!this.id) {
-      this.id_element = element.find('div.ii.gt');
-      this.id = this.id_element.attr('class').match(/(^|\s)m([\S]*)/).pop();
+      this.id_element = element.find('div.ii.gt div.a3s.aXjCH');
+      var classValue = this.id_element.attr('class');
+      if (classValue != null) {
+        var matches = classValue.match(/(^|\s)m([\S]*)/);
+        if (matches !== null) {
+          this.id = matches.pop();
+        }
+      }
     }
     this.$el = element;
     return this;
-  }
+  };
+
   $.extend(api.dom.email.prototype, {
 
     /**
@@ -2075,6 +2427,7 @@ var Gmail = function(localJQuery) {
 
       // loop through any matching to elements & prepare for output
       var out = new Array();
+
       this.dom('to').each(function(index) {
         el = $(this);
         out.push({
@@ -2131,7 +2484,7 @@ var Gmail = function(localJQuery) {
         // buttons
         reply_button: 'div[role=button].aaq',
         menu_button: 'div[role=button].aap',
-        details_button: 'div[role=button].ajz',
+        details_button: 'div[role=button].ajz'
       };
       if(!config[lookup]) api.tools.error('Dom lookup failed. Unable to find config for \'' + lookup + '\'');
       return this.$el.find(config[lookup]);
@@ -2148,7 +2501,8 @@ var Gmail = function(localJQuery) {
     if (!element || (!element.hasClass('if'))) api.tools.error('api.dom.thread called with invalid element/id');
     this.$el = element;
     return this;
-  }
+  };
+
   $.extend(api.dom.thread.prototype, {
 
     /**
@@ -2159,7 +2513,7 @@ var Gmail = function(localJQuery) {
       var config = {
         opened_email: 'div.adn',
         subject: 'h2.hP',
-        labels: 'div.hN',
+        labels: 'div.hN'
       };
       if(!config[lookup]) api.tools.error('Dom lookup failed. Unable to find config for \'' + lookup + '\'');
       return this.$el.find(config[lookup]);
@@ -2180,17 +2534,33 @@ var Gmail = function(localJQuery) {
       //Trigger mouse down event
       var mouseDown = document.createEvent('MouseEvents');
       mouseDown.initEvent( 'mousedown', true, false );
-      composeEl.dispatchEvent(mouseDown)
+      composeEl.dispatchEvent(mouseDown);
 
       //Trigger mouse up event
       var mouseUp = document.createEvent('MouseEvents');
       mouseUp.initEvent( 'mouseup', true, false );
-      composeEl.dispatchEvent(mouseUp)
+      composeEl.dispatchEvent(mouseUp);
 
       return true;
     }
     return false;
-  }
+  };
 
   return api;
+};
+
+if (!window.Gmail) {
+  window.Gmail = initalizeOnce(Gmail_);
 }
+
+function initalizeOnce(fn) {
+  var result;
+  return function() {
+    if (fn) {
+      result = fn.apply(this, arguments);
+    }
+    fn = null;
+    return result;
+  }
+}
+

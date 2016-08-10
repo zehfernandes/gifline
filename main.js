@@ -25,52 +25,87 @@ var main = function(){
             window.clearTimeout(typingTimer);
         });
 
+        $('.Ap').on("click", ".gifLine", function(){
+            var separator = $("<span />", {
+                "class": "a5u",
+                "style": "-webkit-user-select: none;"
+            }).html("|");
+
+            var element = $("<span />", {
+                "class": "Lh",
+                "id": "reload-image",
+                "style": "-webkit-user-select: none;"
+            }).html("Reload Gif");
+
+            element.click({gif: this}, reloadGif);
+
+            $('.a5s').find("#tr_sizes-div").append(separator).append(element);
+            //$(this).closest( "table" ).next("");
+        });
+
     });
+
+    function reloadGif(event) {
+      var keyword = $(event.data.gif).attr("title");
+
+      $.ajax({
+          url: 'https://tv.giphy.com/v1/gifs/random?api_key=xTiTnvpvz9ucREOFRS&tag='+keyword,
+          cache: false
+        }).done(function( obj ) {
+
+          var data = obj.data.image_url;
+          data = data.replace("http://", "https://");
+          var string = '<img src = "'+data+'" class="gifLine"  title="'+keyword+'">';
+
+          //$(event.data.gif).attr("src", data);
+          var composes = gmail.dom.composes();
+          $.each(composes, function(key,email){
+            var t = $(event.data.gif).map(function() { return this.outerHTML; }).get().join("");
+
+            body = email.body().replace(t, string);
+            email.body(body);
+
+            $("body").find("#default-resize-image").trigger("click");
+
+          });
+
+      });
+    }
 
     function doneTyping() {
 
         var composes = gmail.dom.composes();
-
         $.each(composes, function(key,email){
 
             var body = email.body();
-            var commandLine = body.match(/::gif me ([\w\??| ]+)/i);
+            var commandLine = body.match(/(\/|::)gif(me| me)? ([\w\??| ]+)/i);
 
             if (commandLine != null) {
+              var keyword = commandLine[3].replace(" ", "+");
+              var replace = commandLine[0];
+              var string;
 
-              var request = new XMLHttpRequest;
-              //request.open('GET', 'https://api.giphy.com/v1/gifs/random?api_key=xTiTnvpvz9ucREOFRS&tag='+commandLine[1], true); Old random
-              request.open('GET', ' https://tv.giphy.com/v1/gifs/random?api_key=xTiTnvpvz9ucREOFRS&tag='+commandLine[1], true);
-              request.onload = function() {
-                  if (request.status >= 200 && request.status < 400){
+              $.ajax({
+                url: 'https://tv.giphy.com/v1/gifs/random?api_key=xTiTnvpvz9ucREOFRS&tag='+keyword,
+                cache: false
+              }).done(function( obj ) {
+                  var data = obj.data.image_url;
+                  data = data.replace("http://", "https://");
 
-                    var data = JSON.parse(request.responseText).data.image_url;
-                    var string;
-                    var replace = commandLine[0];
-
-                      if (data) {
-                          data = data.replace("http://", "https://");
-                          string = '<img src = "'+data+'"  title="GIF via Giphy">';
-                      } else {
-                          string = '<em>I can\'t find any GIF with this reaction.';
-                      }
-
-                      body = body.replace(replace, string);
-                      email.body(body);
+                  if (data) {
+                    string = '<img src = "'+data+'" class="gifLine"  title="'+keyword+'">';
                   } else {
-                    console.log('reached giphy, but API returned an error');
+                    string = '<em>I can\'t find any GIF with this reaction.</em>';
                   }
-              };
 
-              request.onerror = function() {
-                  console.log('connection error');
-              };
+                  body = body.replace(replace, string);
+                  email.body(body);
 
-              request.send();
+              });
+
             }
 
         });
-
     }
 }
 
