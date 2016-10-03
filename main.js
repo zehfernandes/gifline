@@ -79,6 +79,7 @@ var main = function(){
 
             var body = email.body();
             var commandLine = body.match(/(\/|::)gif(me| me)? ([\w\??| ]+)/i);
+            console.log("Done Typing", commandLine);
 
             if (commandLine != null) {
               var keyword = commandLine[3].replace(" ", "+");

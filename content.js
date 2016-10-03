@@ -1,12 +1,20 @@
 
-var j = document.createElement('script');
-j.src = chrome.extension.getURL('jquery-1.10.2.min.js');
-(document.head || document.documentElement).appendChild(j);
+var _load = function(script, callback) {
+    script = chrome.extension.getURL(script);
+    var scr = document.createElement("script");
+    scr.src = script;
+    if (callback) {
+        if (scr.addEventListener) {
+            scr.addEventListener("load", callback);
+        } else {
+            scr.onload = callback;
+        }
+    }
+    (document.head || document.documentElement).appendChild(scr);
+}
 
-var g = document.createElement('script');
-g.src = chrome.extension.getURL('gmail.js');
-(document.head || document.documentElement).appendChild(g);
-
-var s = document.createElement('script');
-s.src = chrome.extension.getURL('main.js');
-(document.head || document.documentElement).appendChild(s);
+_load("jquery-1.10.2.min.js", function() {
+    _load("gmail.js", function() {
+        _load("main.js");
+    });
+});
