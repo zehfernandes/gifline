@@ -1,6 +1,6 @@
 {
   "name": "Gmail Gifline",
-  "version": "1.6",
+  "version": "1.7",
   "description": "The fastest way to include gif in your emails",
   "content_scripts": [
     {
