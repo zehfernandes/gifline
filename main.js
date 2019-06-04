@@ -2,7 +2,7 @@ var gmail;
 
 function refresh(f) {
   if( (/in/.test(document.readyState)) || (undefined === Gmail) ) {
-    setTimeout('refresh(' + f + ')', 10);
+    setTimeout('refresh(' + f + ')', 1);
   } else {
     f();
   }

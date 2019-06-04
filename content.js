@@ -13,8 +13,13 @@ var _load = function(script, callback) {
     (document.head || document.documentElement).appendChild(scr);
 }
 
-_load("jquery-1.10.2.min.js", function() {
-    _load("gmail.js", function() {
-        _load("main.js");
+
+setTimeout(function() { 
+
+    _load("jquery-3.4.1.min.js", function() {
+        _load("gmail.js", function() {
+            _load("main.js");
+        });
     });
-});
+
+},1000)
